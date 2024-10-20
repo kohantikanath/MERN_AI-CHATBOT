@@ -28,7 +28,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  chats: [chatSchema],
+  chats: {
+    type: [],  // Array of chat documents, defaults to an empty array if not provided
+    default: [],  
+  }
 });
 
 export default mongoose.model("User", userSchema);

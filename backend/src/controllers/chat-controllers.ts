@@ -1,7 +1,13 @@
 import { NextFunction, Request, Response } from "express";
 import User from "../models/User.js";
-import { configureOpenAI } from "../config/openai-config.js";
-import { OpenAIApi, ChatCompletionRequestMessage } from "openai";
+import { configureGeminiAI } from "../config/gemini-config.js";
+import { GoogleGenerativeAI, GenerativeModel, ChatSession } from "@google/generative-ai";
+
+interface ChatMessage {
+  role: string;
+  content: string;
+}
+
 export const generateChatCompletion = async (
   req: Request,
   res: Response,
@@ -14,24 +20,37 @@ export const generateChatCompletion = async (
       return res
         .status(401)
         .json({ message: "User not registered OR Token malfunctioned" });
+
     // grab chats of user
-    const chats = user.chats.map(({ role, content }) => ({
+    const chats: ChatMessage[] = user.chats.map(({ role, content }) => ({
       role,
       content,
-    })) as ChatCompletionRequestMessage[];
+    }));
     chats.push({ content: message, role: "user" });
     user.chats.push({ content: message, role: "user" });
 
-    // send all chats with new one to openAI API
-    const config = configureOpenAI();
-    const openai = new OpenAIApi(config);
-    // get latest response
-    const chatResponse = await openai.createChatCompletion({
-      model: "gpt-3.5-turbo",
-      messages: chats,
-    });
-    user.chats.push(chatResponse.data.choices[0].message);
+    // send all chats with new one to Gemini API
+    const genAI: GoogleGenerativeAI = configureGeminiAI();
+    const model: GenerativeModel = genAI.getGenerativeModel({ model: "gemini-pro" });
+
+    // Prepare the chat history for Gemini
+    const chatHistory = chats.map(chat => ({
+      role: chat.role === "user" ? "user" : "model",
+      parts: [{ text: chat.content }],
+    }));
+
+    // Start a new chat session
+    const chat: ChatSession = model.startChat({ history: chatHistory });
+
+    // Get the response from Gemini
+    const result = await chat.sendMessage(message);
+    const response = result.response;
+
+    // Add the response to the user's chat history
+    const aiMessage: ChatMessage = { content: response.text(), role: "assistant" };
+    user.chats.push(aiMessage);
     await user.save();
+
     return res.status(200).json({ chats: user.chats });
   } catch (error) {
     console.log(error);
@@ -74,7 +93,6 @@ export const deleteChats = async (
     if (user._id.toString() !== res.locals.jwtData.id) {
       return res.status(401).send("Permissions didn't match");
     }
-    //@ts-ignore
     user.chats = [];
     await user.save();
     return res.status(200).json({ message: "OK" });
