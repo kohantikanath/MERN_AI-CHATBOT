@@ -23,7 +23,7 @@ const Footer = () => {
               Kohantika
             </Link>
           </span>
-          💘
+          💜
         </p>
       </div>
     </footer>
