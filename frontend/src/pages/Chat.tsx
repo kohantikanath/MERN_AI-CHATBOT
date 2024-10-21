@@ -188,6 +188,7 @@ const Chat = () => {
               color: "white",
               fontSize: "20px",
             }}
+            placeholder="Enter your promt here!"
           />
           <IconButton onClick={handleSubmit} sx={{ color: "white", mx: 1 }}>
             <IoMdSend />
